@@ -23,6 +23,11 @@ class RiotCaptcha
     private static $stringLength = 5;
     private static $keyLength = 12;
 
+    private static $imageWidth = 250;
+    private static $imageHeight = 70;
+
+    private static $imageObject = null;
+
     /**
      * DESCRIPTION HERE
      */
@@ -124,6 +129,8 @@ class RiotCaptcha
 		return true;
     }
 
+    
+
     /**
      * DESCRIPTION HERE
      */
@@ -183,5 +190,200 @@ class RiotCaptcha
     public static function getStringVariable()
     {
         return self::$stringVarialble;
+    }
+
+    /**
+     * DESCRIPTION HERE
+     */
+    public static function outputImage()
+    {
+        self::setKeyFromGet();
+        if (empty(self::$key)) {
+            return;
+        }
+
+        self::setStringFromKey();
+        if (empty(self::$string)) {
+            return;
+        }
+        
+        self::makeImage();
+    }
+
+    /**
+     * DESCRIPTION HERE
+     */
+    public static function setKeyFromGet()
+    {
+        if (empty($_GET[self::$keyVarialble])) {
+            return;
+        }
+
+        $key = strval($_GET[self::$keyVarialble]);
+        if (empty($key)) {
+            return;
+        }
+
+        self::$key = $key; 
+    }
+
+    /**
+     * DESCRIPTION HERE
+     */
+    public static function setStringFromKey()
+    {
+        if (empty(self::$key)) {
+            return false;
+        }
+        
+        if (!is_file(self::$captchaTextFilePath)) {
+            return false;
+        }
+
+        $fileHandle = fopen(self::$captchaTextFilePath, 'r');
+
+        if (!$fileHandle) {
+			// failed to create a file handler
+			return false;
+		}
+        
+        $fileSize = filesize(self::$captchaTextFilePath);
+		if (empty($fileSize)) {
+            // fail, the file is empty
+            fclose($fileHandle);
+            return false;
+		}
+        
+        $contents = trim(fread($fileHandle, $fileSize));
+        $lines = explode("\n",$contents);
+        foreach ($lines as $line) {
+            $data = explode(' ', $line);
+            $key = trim($data[1]);
+            if (strcmp(self::$key,  $key) === 0) {
+                // success, match found
+                self::$string = trim($data[0]);
+                fclose($fileHandle);
+                return true;
+            }
+        }
+
+  		fclose($fileHandle);
+		return false;
+    }
+
+    /**
+     * DESCRIPTION HERE
+     */
+    private static function makeImage() 
+    {
+        $rgbAr1 = self::getRandomRgb('dark');
+        self::$imageObject = imagecreate(self::$imageWidth, self::$imageHeight);
+        ImageFill(self::$imageObject, 0, 0, self::getGdColor(self::$imageObject, $rgbAr1));
+
+        $length = strlen(self::$string);
+
+        
+
+        $tempRgbAr = self::getRandomRgb('dark');
+        imagefilledrectangle(
+            self::$imageObject,
+            0,
+            0,
+            self::$imageWidth,
+            rand (self::$imageHeight*.4, self::$imageHeight*.6),
+            self::getGdColor(self::$imageObject, $tempRgbAr)
+        );
+
+        $widthPer = self::$imageWidth / $length;
+
+        for ($x = 1; $x <= $length; $x++) {
+            $char = substr(self::$string, $x - 1, 1);
+            //$top=rand(3, (self::$imageHeight-34));
+
+            $temp = imagecreate(10, 14);
+            //var_dump($rgbAr)
+            ImageFill($temp, 0, 0, self::getGdColor($temp, $rgbAr1));
+            //ImageFill($temp, 0, 0, self::getTransparent($temp)); 
+
+            $tempRgbAr = self::getRandomRgb('light');
+            imagestring($temp, 5, 0, 0, $char, self::getGdColor($temp, $tempRgbAr));
+            //$left = ($x-1)*(self::$imageWidth/$length);
+            //$left  = $left + rand(0,8)-4;
+
+            //$temp = imagescale($temp,40);
+
+            //$temp = imagerotate($temp, rand(-5,5), 0);
+
+            
+
+            $charWidth = imagesx($temp);
+            $charHeight = imagesy($temp);
+
+            $avgWidth = $widthPer;
+            $avgHeight = $avgWidth / $charWidth * $charHeight;
+            if ($avgHeight > self::$imageHeight) {
+                $avgHeight = self::$imageHeight;
+                $avgWidth = $avgHeight / $charHeight * $charWidth;
+            }
+            $newWidth = rand($avgWidth * .7, $avgWidth);
+            $newHeight = $newWidth / $charWidth * $charHeight;
+
+            $leftStart = ($x - 1) * $widthPer;
+            $left = $leftStart + rand(-1, $widthPer - $newWidth + 1);
+            $top = rand(-1, self::$imageHeight - $newHeight + 1);
+
+            //imagecopyresampled( self::$imageObject , $temp  ,$left, $top, 0 , 0,  27 ,  39,  12 ,  17 );
+            imagecopyresampled(self::$imageObject, $temp, $left, $top, 0, 0,  $newWidth,  $newHeight,  $charWidth,  $charHeight);
+        }
+
+        //imagefilter(self::$imageObject, IMG_FILTER_GAUSSIAN_BLUR);
+
+        for ($x = 1; $x <= $length; $x++) {
+
+            $left = rand($widthPer * ($x-1),  ($widthPer * ($x-1)+($widthPer*.05)));
+            $right = $left+ $widthPer;
+            $top = rand( 0, self::$imageHeight*.2);
+            $bottom = rand( self::$imageHeight, self::$imageHeight*.8);
+            $tempRgbAr = self::getRandomRgb();
+            imagerectangle(  self::$imageObject , $left , $top , $right , $bottom ,self::getGdColor(self::$imageObject, $tempRgbAr) );
+        }
+
+        header("Content-Type: image/png");
+
+        imagepng(self::$imageObject);
+        imagedestroy(self::$imageObject);
+    }
+
+    private static function getRandomRgb($type = '')
+    {
+        if ($type == "dark") {
+            $min = 0;
+            $max = 100;
+            $min2 = 60;
+            $max2 = 200;
+        } elseif ($type == "light") {
+            $min = 140;
+            $max = 210;
+            $min2 = 50;
+            $max2 = 255;
+        } else {
+            $min = 0;
+            $max = 0;
+            $min2 = 255;
+            $max2 = 255;
+        }
+
+        $c = array();
+        $c[1] = rand($min, $max);
+        $c[2] = rand($min, $max);
+        $c[3] = rand($min, $max);
+        $c[mt_rand(1, 3)] = rand($min2, $max2);
+
+        return $c;
+    }
+
+    private static function getGdColor($obj, $rgb)
+    {
+        return imagecolorallocate($obj, $rgb[1], $rgb[2], $rgb[3]);
     }
 }
