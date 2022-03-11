@@ -65,8 +65,63 @@ class RiotCaptcha
     /**
      * DESCRIPTION HERE
      */
+    private static function currentDateString() 
+    {
+        $dateTime = new DateTime();
+        return $dateTime->format('YmdHis');
+    }
+
+    /**
+     * DESCRIPTION HERE
+     */
     public static function saveToFile()
     {
+        if (empty(self::$captchaTextFilePath)) {
+			// captcha save file is not setup
+			return false;
+		}
+        
+
+        $fileHandle = fopen(self::$captchaTextFilePath, 'a+');
+        if (!$fileHandle) {
+			// failed to create a file handler
+			return false;
+		}
+
+        $newLineString = self::$string.' '.self::$key.' '.self::currentDateString();
+
+		if (!is_file(self::$captchaTextFilePath)) {
+            // new file, write to it
+			fwrite($fileHandle, $newLineString);
+            fclose($fileHandle);
+            return true;
+		}
+        
+        $fileSize = filesize(self::$captchaTextFilePath);
+		if (empty($fileSize)) {
+			// empty file, write to it
+			fwrite($fileHandle, $newLineString);
+            fclose($fileHandle);
+            return true;
+		}
+        
+        $contents = trim(fread($fileHandle, $fileSize));
+        $lines = explode("\n",$contents);
+        foreach ($lines as $line) {
+            $data = explode(' ', $line);
+            $string = trim($data[0]);
+            $key = trim($data[1]);
+            if (strcasecmp(self::$string,  $string) === 0 || strcasecmp(self::$key,  $key) === 0 ) {
+                // fail - string or key already set
+                fclose($fileHandle);
+                return false;
+            }
+        }
+        
+        // write to existing non empty file
+        fwrite($fileHandle, "\n".$newLineString);
+		fclose($fileHandle);
+		return true;
     }
 
     /**
