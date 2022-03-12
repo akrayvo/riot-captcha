@@ -1,0 +1,17 @@
+.main {
+    margin:0 auto;
+    padding:10px 5px;
+    width:100%;
+    max-width:800px;
+}
+
+.msg {
+    background-color:#CFC;
+    padding:5px 10px;
+    margin-bottom:20px;
+}
+
+.msg.msg-error {
+    background-color:#FCC;
+    color:#900;
+}

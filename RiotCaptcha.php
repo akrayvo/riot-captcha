@@ -28,6 +28,13 @@ class RiotCaptcha
 
     private static $imageObject = null;
 
+    private static $isSuccess = false;
+
+    private static $error = '';
+
+    private static $errorMessageRequired = 'Please enter Match Text';
+	private static $errorMessageMismatch = 'Match Text is incorrect';
+
     /**
      * DESCRIPTION HERE
      */
@@ -79,7 +86,7 @@ class RiotCaptcha
     /**
      * DESCRIPTION HERE
      */
-    public static function saveToFile()
+    private static function saveToFile()
     {
         if (empty(self::$captchaTextFilePath)) {
 			// captcha save file is not setup
@@ -213,7 +220,7 @@ class RiotCaptcha
     /**
      * DESCRIPTION HERE
      */
-    public static function setKeyFromGet()
+    private static function setKeyFromGet()
     {
         if (empty($_GET[self::$keyVarialble])) {
             return;
@@ -230,12 +237,34 @@ class RiotCaptcha
     /**
      * DESCRIPTION HERE
      */
-    public static function setStringFromKey()
+    private static function getFromPost($name)
     {
+        if (empty($name)) {
+            return '';
+        }
+
+        if (empty($_POST[$name])) {
+            return '';
+        }
+
+        $value = strval($_POST[$name]);
+        if (empty($value)) {
+            return '';
+        }
+
+        return $value;
+    }
+
+    /**
+     * DESCRIPTION HERE
+     */
+    private static function setStringFromKey($doCleanup = false)
+    {
+
         if (empty(self::$key)) {
             return false;
         }
-        
+
         if (!is_file(self::$captchaTextFilePath)) {
             return false;
         }
@@ -246,7 +275,7 @@ class RiotCaptcha
 			// failed to create a file handler
 			return false;
 		}
-        
+
         $fileSize = filesize(self::$captchaTextFilePath);
 		if (empty($fileSize)) {
             // fail, the file is empty
@@ -354,6 +383,9 @@ class RiotCaptcha
         imagedestroy(self::$imageObject);
     }
 
+    /**
+     * DESCRIPTION HERE
+     */
     private static function getRandomRgb($type = '')
     {
         if ($type == "dark") {
@@ -382,8 +414,51 @@ class RiotCaptcha
         return $c;
     }
 
+    /**
+     * DESCRIPTION HERE
+     */
     private static function getGdColor($obj, $rgb)
     {
         return imagecolorallocate($obj, $rgb[1], $rgb[2], $rgb[3]);
+    }
+
+    /**
+     * DESCRIPTION HERE
+     */
+    public static function validate() 
+    {
+        self::$isSuccess = false;
+
+        $matchString = self::getFromPost(self::$stringVarialble);
+        if (empty($matchString)) {
+            self::$error = self::$errorMessageRequired;
+            return false;
+        }
+
+        $key = self::getFromPost(self::$keyVarialble);
+        if (empty($key)) {
+            self::$error = self::$errorMessageMismatch.' (1)';
+            return false;
+        }
+        self::$key = $key;
+
+        self::setStringFromKey(true);
+
+        if (empty(self::$string)) {
+            self::$error = self::$errorMessageMismatch.' (2)';
+            return false;
+        }
+
+        if (strcasecmp($matchString,  self::$string) !== 0) {
+            self::$error = self::$errorMessageMismatch;
+            return false;
+        }
+        
+        self::$isSuccess = true;
+        return true;
+    }
+
+    public static function getError() {
+        return self::$error;
     }
 }
