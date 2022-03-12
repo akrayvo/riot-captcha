@@ -7,7 +7,7 @@
 class RiotCaptcha
 {
     private static $captchaTextFilePath = '';
-    
+
     private static $imageUrl = '';
 
     private static $keyVarialble = 'capkey';
@@ -33,7 +33,9 @@ class RiotCaptcha
     private static $error = '';
 
     private static $errorMessageRequired = 'Please enter Match Text';
-	private static $errorMessageMismatch = 'Match Text is incorrect';
+    private static $errorMessageMismatch = 'Match Text is incorrect';
+
+    private static $captchaTimoutSeconds = 600; // 10 minutes
 
     /**
      * DESCRIPTION HERE
@@ -77,11 +79,34 @@ class RiotCaptcha
     /**
      * DESCRIPTION HERE
      */
-    private static function currentDateString() 
+    private static function currentDateString()
     {
         $dateTime = new DateTime();
         return $dateTime->format('YmdHis');
     }
+
+    private static function getSecondsAgo($ymd)
+    {
+        $dateFormated = substr($ymd, 0, 4) . '-' . 
+            substr($ymd, 4, 2) . '-'.
+            substr($ymd, 6, 2) . ' '.
+            substr($ymd, 8, 2) . ':'.
+            substr($ymd, 10, 2) . ':'.
+            substr($ymd, 12, 2);
+        $date = new DateTime($dateFormated);
+        $now = new DateTime();
+
+        $diff = $date->diff($now);
+
+        $seconds = $diff->s;
+        $seconds += $diff->format('%r%a') * 24 * 60 * 60;
+        $seconds += $diff->h * 60 * 60;
+        $seconds += $diff->i * 60;
+
+        return $seconds;
+    }
+
+
 
     /**
      * DESCRIPTION HERE
@@ -89,59 +114,60 @@ class RiotCaptcha
     private static function saveToFile()
     {
         if (empty(self::$captchaTextFilePath)) {
-			// captcha save file is not setup
-			return false;
-		}
-        
+            // captcha save file is not setup
+            return false;
+        }
+
 
         $fileHandle = fopen(self::$captchaTextFilePath, 'a+');
         if (!$fileHandle) {
-			// failed to create a file handler
-			return false;
-		}
+            // failed to create a file handler
+            return false;
+        }
 
-        $newLineString = self::$string.' '.self::$key.' '.self::currentDateString();
+        $newLineString = self::$string . ' ' . self::$key . ' ' . self::currentDateString();
 
-		if (!is_file(self::$captchaTextFilePath)) {
+        if (!is_file(self::$captchaTextFilePath)) {
             // new file, write to it
-			fwrite($fileHandle, $newLineString);
+            fwrite($fileHandle, $newLineString);
             fclose($fileHandle);
             return true;
-		}
-        
+        }
+
         $fileSize = filesize(self::$captchaTextFilePath);
-		if (empty($fileSize)) {
-			// empty file, write to it
-			fwrite($fileHandle, $newLineString);
+        if (empty($fileSize)) {
+            // empty file, write to it
+            fwrite($fileHandle, $newLineString);
             fclose($fileHandle);
             return true;
-		}
-        
+        }
+
         $contents = trim(fread($fileHandle, $fileSize));
-        $lines = explode("\n",$contents);
+        $lines = explode("\n", $contents);
         foreach ($lines as $line) {
             $data = explode(' ', $line);
             $string = trim($data[0]);
             $key = trim($data[1]);
-            if (strcasecmp(self::$string,  $string) === 0 || strcasecmp(self::$key,  $key) === 0 ) {
+            if (strcasecmp(self::$string,  $string) === 0 || strcasecmp(self::$key,  $key) === 0) {
                 // fail - string or key already set
                 fclose($fileHandle);
                 return false;
             }
         }
-        
+
         // write to existing non empty file
-        fwrite($fileHandle, "\n".$newLineString);
-		fclose($fileHandle);
-		return true;
+        fwrite($fileHandle, "\n" . $newLineString);
+        fclose($fileHandle);
+        return true;
     }
 
-    
+
 
     /**
      * DESCRIPTION HERE
      */
-    private static function getRandomString($characters, $length) {
+    private static function getRandomString($characters, $length)
+    {
         $str = '';
         $maxRand = strlen($characters) - 1;
         for ($x = 1; $x <= $length; $x++) {
@@ -154,7 +180,8 @@ class RiotCaptcha
     /**
      * DESCRIPTION HERE
      */
-    private static function createRandomString() {
+    private static function createRandomString()
+    {
         self::$string = self::getRandomString(
             self::$validCharacters,
             self::$stringLength
@@ -166,8 +193,8 @@ class RiotCaptcha
      */
     private static function createRandomKey()
     {
-        $validCharacters = '0123456789'.
-            'abcdefghijklmnopqrstuvwxyz'.
+        $validCharacters = '0123456789' .
+            'abcdefghijklmnopqrstuvwxyz' .
             'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
         self::$key = self::getRandomString(
             $validCharacters,
@@ -190,7 +217,7 @@ class RiotCaptcha
     {
         echo '<input type="hidden" name="' . self::$keyVarialble . '" value="' . self::$key . '" />';
     }
-    
+
     /**
      * DESCRIPTION HERE
      */
@@ -213,7 +240,7 @@ class RiotCaptcha
         if (empty(self::$string)) {
             return;
         }
-        
+
         self::makeImage();
     }
 
@@ -231,7 +258,7 @@ class RiotCaptcha
             return;
         }
 
-        self::$key = $key; 
+        self::$key = $key;
     }
 
     /**
@@ -258,9 +285,8 @@ class RiotCaptcha
     /**
      * DESCRIPTION HERE
      */
-    private static function setStringFromKey($doCleanup = false)
+    private static function setStringFromKey()
     {
-
         if (empty(self::$key)) {
             return false;
         }
@@ -272,38 +298,43 @@ class RiotCaptcha
         $fileHandle = fopen(self::$captchaTextFilePath, 'r');
 
         if (!$fileHandle) {
-			// failed to create a file handler
-			return false;
-		}
+            // failed to create a file handler
+            return false;
+        }
 
         $fileSize = filesize(self::$captchaTextFilePath);
-		if (empty($fileSize)) {
+        if (empty($fileSize)) {
             // fail, the file is empty
             fclose($fileHandle);
             return false;
-		}
-        
+        }
+
         $contents = trim(fread($fileHandle, $fileSize));
-        $lines = explode("\n",$contents);
+
+        $lines = explode("\n", $contents);
         foreach ($lines as $line) {
             $data = explode(' ', $line);
-            $key = trim($data[1]);
-            if (strcmp(self::$key,  $key) === 0) {
-                // success, match found
-                self::$string = trim($data[0]);
-                fclose($fileHandle);
-                return true;
+            if (count($data) == 3) {
+                $key = trim($data[1]);
+
+                if (strcmp(self::$key,  $key) === 0) {
+                    // success, match found
+                    self::$string = trim($data[0]);
+                    fclose($fileHandle);
+                    return true;
+                }
             }
         }
 
-  		fclose($fileHandle);
-		return false;
+        fclose($fileHandle);
+
+        return false;
     }
 
     /**
      * DESCRIPTION HERE
      */
-    private static function makeImage() 
+    private static function makeImage()
     {
         $rgbAr1 = self::getRandomRgb('dark');
         self::$imageObject = imagecreate(self::$imageWidth, self::$imageHeight);
@@ -311,7 +342,7 @@ class RiotCaptcha
 
         $length = strlen(self::$string);
 
-        
+
 
         $tempRgbAr = self::getRandomRgb('dark');
         imagefilledrectangle(
@@ -319,7 +350,7 @@ class RiotCaptcha
             0,
             0,
             self::$imageWidth,
-            rand (self::$imageHeight*.4, self::$imageHeight*.6),
+            rand(self::$imageHeight * .4, self::$imageHeight * .6),
             self::getGdColor(self::$imageObject, $tempRgbAr)
         );
 
@@ -343,7 +374,7 @@ class RiotCaptcha
 
             //$temp = imagerotate($temp, rand(-5,5), 0);
 
-            
+
 
             $charWidth = imagesx($temp);
             $charHeight = imagesy($temp);
@@ -369,12 +400,12 @@ class RiotCaptcha
 
         for ($x = 1; $x <= $length; $x++) {
 
-            $left = rand($widthPer * ($x-1),  ($widthPer * ($x-1)+($widthPer*.05)));
-            $right = $left+ $widthPer;
-            $top = rand( 0, self::$imageHeight*.2);
-            $bottom = rand( self::$imageHeight, self::$imageHeight*.8);
+            $left = rand($widthPer * ($x - 1), ($widthPer * ($x - 1) + ($widthPer * .05)));
+            $right = $left + $widthPer;
+            $top = rand(0, self::$imageHeight * .2);
+            $bottom = rand(self::$imageHeight, self::$imageHeight * .8);
             $tempRgbAr = self::getRandomRgb();
-            imagerectangle(  self::$imageObject , $left , $top , $right , $bottom ,self::getGdColor(self::$imageObject, $tempRgbAr) );
+            imagerectangle(self::$imageObject, $left, $top, $right, $bottom, self::getGdColor(self::$imageObject, $tempRgbAr));
         }
 
         header("Content-Type: image/png");
@@ -425,40 +456,99 @@ class RiotCaptcha
     /**
      * DESCRIPTION HERE
      */
-    public static function validate() 
+    public static function validate()
     {
         self::$isSuccess = false;
 
-        $matchString = self::getFromPost(self::$stringVarialble);
-        if (empty($matchString)) {
-            self::$error = self::$errorMessageRequired;
-            return false;
-        }
-
         $key = self::getFromPost(self::$keyVarialble);
         if (empty($key)) {
-            self::$error = self::$errorMessageMismatch.' (1)';
+            self::$error = self::$errorMessageMismatch . ' (1)';
             return false;
         }
         self::$key = $key;
 
-        self::setStringFromKey(true);
+        $matchString = self::getFromPost(self::$stringVarialble);
+        if (empty($matchString)) {
+            self::$error = self::$errorMessageRequired;
+            self::fileCleanup();
+            return false;
+        }
+
+        self::setStringFromKey();
 
         if (empty(self::$string)) {
-            self::$error = self::$errorMessageMismatch.' (2)';
+            self::$error = self::$errorMessageMismatch . ' (2)';
+            self::fileCleanup();
             return false;
         }
 
         if (strcasecmp($matchString,  self::$string) !== 0) {
             self::$error = self::$errorMessageMismatch;
+            self::fileCleanup();
             return false;
         }
-        
+
         self::$isSuccess = true;
+        self::fileCleanup();
         return true;
     }
 
-    public static function getError() {
+    public static function fileCleanup()
+    {
+        if (empty(self::$key)) {
+            return;
+        }
+
+        if (!is_file(self::$captchaTextFilePath)) {
+            return;
+        }
+
+        $fileHandle = fopen(self::$captchaTextFilePath, 'r');
+
+        if (!$fileHandle) {
+            // failed to create a file handler
+            return;
+        }
+
+        $fileSize = filesize(self::$captchaTextFilePath);
+        if (empty($fileSize)) {
+            // the file is empty, nothing to cleanup
+            fclose($fileHandle);
+            return;
+        }
+
+        $contents = trim(fread($fileHandle, $fileSize));
+
+        $lines = explode("\n", $contents);
+        $newContents = '';
+        foreach ($lines as $line) {
+            $data = explode(' ', $line);
+            if (count($data) == 3) {
+                $key = trim($data[1]);
+
+                if (strcasecmp(self::$key,  $key) === 0) {
+                    // match found - skip
+                } else {
+                    $sa = self::getSecondsAgo(trim($data[2]));
+                    
+                    if (self::getSecondsAgo(trim($data[2])) <= self::$captchaTimoutSeconds) {
+                        $newContents .= "\n" . $line;
+                    }
+                }
+            }
+        }
+
+        fclose($fileHandle);
+
+        $newContents = trim($newContents);
+
+        $fileHandle = fopen(self::$captchaTextFilePath, 'w');
+        fwrite($fileHandle, $newContents);
+        fclose($fileHandle);
+    }
+
+    public static function getError()
+    {
         return self::$error;
     }
 }
