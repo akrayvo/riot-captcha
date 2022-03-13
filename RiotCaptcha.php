@@ -26,8 +26,6 @@ class RiotCaptcha
     private static $imageWidth = 250;
     private static $imageHeight = 70;
 
-    private static $imageObject = null;
-
     private static $isSuccess = false;
 
     private static $error = '';
@@ -87,11 +85,11 @@ class RiotCaptcha
 
     private static function getSecondsAgo($ymd)
     {
-        $dateFormated = substr($ymd, 0, 4) . '-' . 
-            substr($ymd, 4, 2) . '-'.
-            substr($ymd, 6, 2) . ' '.
-            substr($ymd, 8, 2) . ':'.
-            substr($ymd, 10, 2) . ':'.
+        $dateFormated = substr($ymd, 0, 4) . '-' .
+            substr($ymd, 4, 2) . '-' .
+            substr($ymd, 6, 2) . ' ' .
+            substr($ymd, 8, 2) . ':' .
+            substr($ymd, 10, 2) . ':' .
             substr($ymd, 12, 2);
         $date = new DateTime($dateFormated);
         $now = new DateTime();
@@ -146,12 +144,14 @@ class RiotCaptcha
         $lines = explode("\n", $contents);
         foreach ($lines as $line) {
             $data = explode(' ', $line);
-            $string = trim($data[0]);
-            $key = trim($data[1]);
-            if (strcasecmp(self::$string,  $string) === 0 || strcasecmp(self::$key,  $key) === 0) {
-                // fail - string or key already set
-                fclose($fileHandle);
-                return false;
+            if (count($data) == 3) {
+                $string = trim($data[0]);
+                $key = trim($data[1]);
+                if (strcasecmp(self::$string,  $string) === 0 || strcasecmp(self::$key,  $key) === 0) {
+                    // fail - string or key already set
+                    fclose($fileHandle);
+                    return false;
+                }
             }
         }
 
@@ -235,12 +235,10 @@ class RiotCaptcha
         if (empty(self::$key)) {
             return;
         }
-
         self::setStringFromKey();
         if (empty(self::$string)) {
             return;
         }
-
         self::makeImage();
     }
 
@@ -331,87 +329,152 @@ class RiotCaptcha
         return false;
     }
 
+    private static function addBackgroundgColor($img, $start, $end, $colorType)
+    {
+        $left = $start;
+        $top = 0;
+        $right = rand($left + (self::$imageWidth * .1), $end);
+        $bottom = self::$imageHeight;
+
+        // make sure block isn't too wide
+        if ($right - $left > self::$imageWidth*.2) {
+            $right = $left + (self::$imageWidth*.2);
+        }
+
+        // if block goes almost to the end, extend to the end
+        if ($end - $right < self::$imageWidth*.05) {
+            $right = $end;
+        }
+
+        $rgb = self::getRandomRgb($colorType);
+
+        imagefilledrectangle(
+            $img,
+            $left, // left
+            $top, // top
+            $right, // right
+            $bottom, // bottom
+            self::getGdColor($img, $rgb)
+        );
+
+        if ($right < $end) {
+            return self::addBackgroundgColor($img, $right, $end, $colorType);
+        }
+        return $img;
+    }
+
+    private static function fillTransparent($img) 
+    {
+        $trans = imagecolorallocate($img, 0, 0, 0);
+        imagecolortransparent($img, $trans);
+        ImageFill($img, 0, 0, $trans);
+        return $img;
+    }
+
     /**
      * DESCRIPTION HERE
      */
     private static function makeImage()
     {
-        $rgbAr1 = self::getRandomRgb('dark');
-        self::$imageObject = imagecreate(self::$imageWidth, self::$imageHeight);
-        ImageFill(self::$imageObject, 0, 0, self::getGdColor(self::$imageObject, $rgbAr1));
-
+        $w = self::$imageWidth;
+        $h = self::$imageHeight;
         $length = strlen(self::$string);
 
+        if ($length < 2) {
+            return;
+        }
 
+        $widthEach = $w / $length;
+        $lightStart = rand(2, $length);
+        $lightStartPx = ($lightStart-1) * $widthEach;
 
-        $tempRgbAr = self::getRandomRgb('dark');
-        imagefilledrectangle(
-            self::$imageObject,
-            0,
-            0,
-            self::$imageWidth,
-            rand(self::$imageHeight * .4, self::$imageHeight * .6),
-            self::getGdColor(self::$imageObject, $tempRgbAr)
-        );
+        $img = imagecreate($w, $h);
 
-        $widthPer = self::$imageWidth / $length;
+        $dark = self::getRandomRgb('dark');
+        ImageFill($img, 0, 0, self::getGdColor($img, $dark));
+
+        self::addBackgroundgColor($img, rand($widthEach * .3, $lightStartPx * .4), $lightStartPx, 'dark');
+
+        self::addBackgroundgColor($img, $lightStartPx, $w, 'light');
+
 
         for ($x = 1; $x <= $length; $x++) {
+            // currect character
             $char = substr(self::$string, $x - 1, 1);
-            //$top=rand(3, (self::$imageHeight-34));
 
-            $temp = imagecreate(10, 14);
-            //var_dump($rgbAr)
-            ImageFill($temp, 0, 0, self::getGdColor($temp, $rgbAr1));
-            //ImageFill($temp, 0, 0, self::getTransparent($temp)); 
+            // get light or dark text color depending on the background
+            if ($x >=$lightStart) {
+                $letterRgb = self::getRandomRgb('dark');
+            } else {
+                $letterRgb = self::getRandomRgb('light');
+            }
+            
+            // add transparent background
+            $temp = imagecreatetruecolor(10, 14);
+            
+            $temp = self::fillTransparent($temp);
 
-            $tempRgbAr = self::getRandomRgb('light');
-            imagestring($temp, 5, 0, 0, $char, self::getGdColor($temp, $tempRgbAr));
-            //$left = ($x-1)*(self::$imageWidth/$length);
-            //$left  = $left + rand(0,8)-4;
+            // add character to transparent background
+            imagestring($temp, 5, 0, 0, $char, self::getGdColor($temp, $letterRgb));
 
-            //$temp = imagescale($temp,40);
-
-            //$temp = imagerotate($temp, rand(-5,5), 0);
-
-
-
+            // actual character size
             $charWidth = imagesx($temp);
             $charHeight = imagesy($temp);
 
-            $avgWidth = $widthPer;
-            $avgHeight = $avgWidth / $charWidth * $charHeight;
-            if ($avgHeight > self::$imageHeight) {
-                $avgHeight = self::$imageHeight;
-                $avgWidth = $avgHeight / $charHeight * $charWidth;
+            $maxWidth = $widthEach*.9;
+            $maxHeight = $maxWidth / $charWidth * $charHeight;
+            if ($maxHeight > $h * .9) {
+                $maxHeight = $h * .9;
+                $maxWidth = $maxHeight / $charHeight * $charWidth;
             }
-            $newWidth = rand($avgWidth * .7, $avgWidth);
+            $newWidth = rand($maxWidth * .6, $maxWidth);
             $newHeight = $newWidth / $charWidth * $charHeight;
 
-            $leftStart = ($x - 1) * $widthPer;
-            $left = $leftStart + rand(-1, $widthPer - $newWidth + 1);
-            $top = rand(-1, self::$imageHeight - $newHeight + 1);
+            $left = (($x - 1) * $widthEach)+($widthEach*.05) + rand (0, $widthEach-$newWidth);
+            $top = rand($newHeight*.05, $h - $newHeight + 1);          
+            imagecopyresampled($img, $temp, $left, $top, 0, 0,  $newWidth,  $newHeight,  $charWidth,  $charHeight);
+        }       
 
-            //imagecopyresampled( self::$imageObject , $temp  ,$left, $top, 0 , 0,  27 ,  39,  12 ,  17 );
-            imagecopyresampled(self::$imageObject, $temp, $left, $top, 0, 0,  $newWidth,  $newHeight,  $charWidth,  $charHeight);
+        
+        // roate 3 degress left or right
+        if (rand(0,1) >0 ) {
+            $degrees = 3;
+        } else {
+            $degrees = -3;
         }
+        $img = imagerotate($img, $degrees, 0);
 
-        //imagefilter(self::$imageObject, IMG_FILTER_GAUSSIAN_BLUR);
 
+        // crop to correct size
+        $left = (imagesx($img) - $w) / 2;
+        $top = (imagesy($img) - $h) / 2;
+        $img = imagecrop($img, ['x' => $left, 'y' => $top, 'width' => $w, 'height' => $h]);
+
+
+        // add rectangles around letters
         for ($x = 1; $x <= $length; $x++) {
+            
+            $min = $widthEach * ($x - 1);
+            $max = $min + ($widthEach * .1);
+            $left = rand($min, $max);
 
-            $left = rand($widthPer * ($x - 1), ($widthPer * ($x - 1) + ($widthPer * .05)));
-            $right = $left + $widthPer;
-            $top = rand(0, self::$imageHeight * .2);
-            $bottom = rand(self::$imageHeight, self::$imageHeight * .8);
-            $tempRgbAr = self::getRandomRgb();
-            imagerectangle(self::$imageObject, $left, $top, $right, $bottom, self::getGdColor(self::$imageObject, $tempRgbAr));
+            $numLetters = rand ($x, $length);
+            $min = $widthEach * $numLetters;
+            $max = $min + ($widthEach * .1);
+            $right = rand($min, $max);
+
+            $top = rand(1, $h * .15);
+            $bottom = rand($h * .85, $h);
+            $rgb = self::getRandomRgb();
+            imagerectangle($img, $left, $top, $right, $bottom, self::getGdColor($img, $rgb));
         }
 
-        header("Content-Type: image/png");
+        imagefilter($img, IMG_FILTER_GAUSSIAN_BLUR);
 
-        imagepng(self::$imageObject);
-        imagedestroy(self::$imageObject);
+        header("Content-Type: image/jpg");
+
+        imagepng($img);
+        imagedestroy($img);
     }
 
     /**
@@ -421,14 +484,14 @@ class RiotCaptcha
     {
         if ($type == "dark") {
             $min = 0;
-            $max = 100;
-            $min2 = 60;
-            $max2 = 200;
+            $max = 60;
+            $min2 = 80;
+            $max2 = 150;
         } elseif ($type == "light") {
-            $min = 140;
-            $max = 210;
-            $min2 = 50;
-            $max2 = 255;
+            $min = 210;
+            $max = 255;
+            $min2 = 150;
+            $max2 = 210;
         } else {
             $min = 0;
             $max = 0;
@@ -529,9 +592,9 @@ class RiotCaptcha
                 if (strcasecmp(self::$key,  $key) === 0) {
                     // match found - skip
                 } else {
-                    $sa = self::getSecondsAgo(trim($data[2]));
-                    
-                    if (self::getSecondsAgo(trim($data[2])) <= self::$captchaTimoutSeconds) {
+                    $seconds = self::getSecondsAgo(trim($data[2]));
+
+                    if ($seconds <= self::$captchaTimoutSeconds) {
                         $newContents .= "\n" . $line;
                     }
                 }
