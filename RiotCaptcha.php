@@ -18,13 +18,15 @@ class RiotCaptcha
 
     private static $string = '';
 
+    private static $secondsAgo = null;
+
     private static $validCharacters = 'ACDEFGHJKLMNPRTVWXYZ234679';
 
-    private static $stringLength = 5;
+    private static $stringLength = 4;
     private static $keyLength = 12;
 
     private static $imageWidth = 250;
-    private static $imageHeight = 70;
+    private static $imageHeight = 80;
 
     private static $isSuccess = false;
 
@@ -32,8 +34,17 @@ class RiotCaptcha
 
     private static $errorMessageRequired = 'Please enter Match Text';
     private static $errorMessageMismatch = 'Match Text is incorrect';
+    private static $errorMessageTimeout = 'Match Text timeout';
 
     private static $captchaTimoutSeconds = 600; // 10 minutes
+
+    /**
+     * DESCRIPTION HERE
+     */
+    public static function getIsSuccess()
+    {
+        return self::$isSuccess;
+    }
 
     /**
      * DESCRIPTION HERE
@@ -91,8 +102,13 @@ class RiotCaptcha
             substr($ymd, 8, 2) . ':' .
             substr($ymd, 10, 2) . ':' .
             substr($ymd, 12, 2);
-        $date = new DateTime($dateFormated);
-        $now = new DateTime();
+
+        try {
+            $date = new DateTime($dateFormated);
+            $now = new DateTime();
+        } catch (Exception $e) {
+            return null;
+        }
 
         $diff = $date->diff($now);
 
@@ -316,10 +332,14 @@ class RiotCaptcha
                 $key = trim($data[1]);
 
                 if (strcmp(self::$key,  $key) === 0) {
-                    // success, match found
-                    self::$string = trim($data[0]);
-                    fclose($fileHandle);
-                    return true;
+                    // match found
+                    $secondsAgo = self::getSecondsAgo(trim($data[2]));
+                    if ($secondsAgo !== null) {
+                        self::$string = trim($data[0]);
+                        self::$secondsAgo = $secondsAgo;
+                        fclose($fileHandle);
+                        return true;
+                    }
                 }
             }
         }
@@ -337,12 +357,12 @@ class RiotCaptcha
         $bottom = self::$imageHeight;
 
         // make sure block isn't too wide
-        if ($right - $left > self::$imageWidth*.2) {
-            $right = $left + (self::$imageWidth*.2);
+        if ($right - $left > self::$imageWidth * .2) {
+            $right = $left + (self::$imageWidth * .2);
         }
 
         // if block goes almost to the end, extend to the end
-        if ($end - $right < self::$imageWidth*.05) {
+        if ($end - $right < self::$imageWidth * .05) {
             $right = $end;
         }
 
@@ -363,7 +383,7 @@ class RiotCaptcha
         return $img;
     }
 
-    private static function fillTransparent($img) 
+    private static function fillTransparent($img)
     {
         $trans = imagecolorallocate($img, 0, 0, 0);
         imagecolortransparent($img, $trans);
@@ -386,7 +406,7 @@ class RiotCaptcha
 
         $widthEach = $w / $length;
         $lightStart = rand(2, $length);
-        $lightStartPx = ($lightStart-1) * $widthEach;
+        $lightStartPx = ($lightStart - 1) * $widthEach;
 
         $img = imagecreate($w, $h);
 
@@ -403,15 +423,15 @@ class RiotCaptcha
             $char = substr(self::$string, $x - 1, 1);
 
             // get light or dark text color depending on the background
-            if ($x >=$lightStart) {
+            if ($x >= $lightStart) {
                 $letterRgb = self::getRandomRgb('dark');
             } else {
                 $letterRgb = self::getRandomRgb('light');
             }
-            
+
             // add transparent background
             $temp = imagecreatetruecolor(10, 14);
-            
+
             $temp = self::fillTransparent($temp);
 
             // add character to transparent background
@@ -421,7 +441,7 @@ class RiotCaptcha
             $charWidth = imagesx($temp);
             $charHeight = imagesy($temp);
 
-            $maxWidth = $widthEach*.9;
+            $maxWidth = $widthEach * .9;
             $maxHeight = $maxWidth / $charWidth * $charHeight;
             if ($maxHeight > $h * .9) {
                 $maxHeight = $h * .9;
@@ -430,35 +450,36 @@ class RiotCaptcha
             $newWidth = rand($maxWidth * .6, $maxWidth);
             $newHeight = $newWidth / $charWidth * $charHeight;
 
-            $left = (($x - 1) * $widthEach)+($widthEach*.05) + rand (0, $widthEach-$newWidth);
-            $top = rand($newHeight*.05, $h - $newHeight + 1);          
+            $left = (($x - 1) * $widthEach) + ($widthEach * .05) + rand(0, $widthEach - $newWidth);
+            $top = rand($newHeight * .05, $h - $newHeight + 1);
             imagecopyresampled($img, $temp, $left, $top, 0, 0,  $newWidth,  $newHeight,  $charWidth,  $charHeight);
-        }       
+        }
 
-        
+
         // roate 3 degress left or right
-        if (rand(0,1) >0 ) {
-            $degrees = 3;
+        if (rand(0, 1) > 0) {
+            $degrees = 2;
         } else {
-            $degrees = -3;
+            $degrees = -2;
         }
         $img = imagerotate($img, $degrees, 0);
 
 
         // crop to correct size
-        $left = (imagesx($img) - $w) / 2;
-        $top = (imagesy($img) - $h) / 2;
-        $img = imagecrop($img, ['x' => $left, 'y' => $top, 'width' => $w, 'height' => $h]);
+        //$left = (imagesx($img) - $w) / 2;
+        //$top = (imagesy($img) - $h) / 2;
+        //$img = imagecrop($img, ['x' => $left, 'y' => $top, 'width' => $w, 'height' => $h]);
+        imagescale($img, $w, $h);
 
 
         // add rectangles around letters
         for ($x = 1; $x <= $length; $x++) {
-            
+
             $min = $widthEach * ($x - 1);
             $max = $min + ($widthEach * .1);
             $left = rand($min, $max);
 
-            $numLetters = rand ($x, $length);
+            $numLetters = rand($x, $length);
             $min = $widthEach * $numLetters;
             $max = $min + ($widthEach * .1);
             $right = rand($min, $max);
@@ -551,6 +572,12 @@ class RiotCaptcha
             return false;
         }
 
+        if (self::$secondsAgo === null || self::$secondsAgo >= self::$captchaTimoutSeconds) {
+            self::$error = self::$errorMessageTimeout;
+            self::fileCleanup();
+            return false;
+        }
+
         self::$isSuccess = true;
         self::fileCleanup();
         return true;
@@ -592,9 +619,9 @@ class RiotCaptcha
                 if (strcasecmp(self::$key,  $key) === 0) {
                     // match found - skip
                 } else {
-                    $seconds = self::getSecondsAgo(trim($data[2]));
+                    $secondsAgo = self::getSecondsAgo(trim($data[2]));
 
-                    if ($seconds <= self::$captchaTimoutSeconds) {
+                    if ($secondsAgo !== null && $secondsAgo <= self::$captchaTimoutSeconds) {
                         $newContents .= "\n" . $line;
                     }
                 }
