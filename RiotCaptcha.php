@@ -6,49 +6,58 @@
 
 class RiotCaptcha
 {
+    // path of the text file that contains captcha information
+    // *** this file MUST NOT be web accessible. it should be outside of
+    //      the web root or blocked via htaccess
     private static $captchaTextFilePath = '';
 
+    // the url of the captcha image
     private static $imageUrl = '';
 
-    private static $keyVarialble = 'capkey';
+    // max number of seconds between when the captcha is created and 
+    //  the captcha is validated
+    private static $captchaTimoutSeconds = 900; // 15 minutes
 
+    // variables used to pass captcha info through post and get
+    private static $keyVarialble = 'capkey';
     private static $stringVarialble = 'capstr';
 
-    private static $key = '';
-
+    // the captcha text (text in the image)
     private static $string = '';
-
+    // unique code of the captcha
+    private static $key = '';
+    // number of seconds since the captcha was created
     private static $secondsAgo = null;
 
+    // characters allowed in the captcha.
+    // simlar looking letters are removed. for example 8 and B.
     private static $validCharacters = 'ACDEFGHJKLMNPRTVWXYZ234679';
 
+    // the text lenght of the captch
     private static $stringLength = 4;
-    private static $keyLength = 12;
+    // the length of the key
+    private static $keyLength = 8;
 
-    private static $imageWidth = 250;
-    private static $imageHeight = 80;
+    // dimensions of the captcha image
+    private static $imageWidth = 180;
+    private static $imageHeight = 50;
 
+    // if the captcha was successfully validated
     private static $isSuccess = false;
 
+    // the generated error message if validation was not successful
     private static $error = '';
 
+    // specific error messages
     private static $errorMessageRequired = 'Please enter Match Text';
     private static $errorMessageMismatch = 'Match Text is incorrect';
     private static $errorMessageTimeout = 'Match Text timeout';
 
-    private static $captchaTimoutSeconds = 600; // 10 minutes
-
-    /**
-     * DESCRIPTION HERE
-     */
     public static function getIsSuccess()
     {
         return self::$isSuccess;
     }
 
-    /**
-     * DESCRIPTION HERE
-     */
     public static function setCaptchaTextFilePath($value)
     {
         $value = strval($value);
@@ -59,9 +68,6 @@ class RiotCaptcha
         }
     }
 
-    /**
-     * DESCRIPTION HERE
-     */
     public static function setImageUrl($value)
     {
         $value = strval($value);
@@ -73,7 +79,7 @@ class RiotCaptcha
     }
 
     /**
-     * DESCRIPTION HERE
+     * Create captcha text and key. Save them to a file.
      */
     public static function initialize($captchaTextFilePath = null)
     {
@@ -86,7 +92,7 @@ class RiotCaptcha
     }
 
     /**
-     * DESCRIPTION HERE
+     * Get the formatted date string
      */
     private static function currentDateString()
     {
@@ -94,6 +100,7 @@ class RiotCaptcha
         return $dateTime->format('YmdHis');
     }
 
+    // get the time difference in seconds between now and the passed formatted date
     private static function getSecondsAgo($ymd)
     {
         $dateFormated = substr($ymd, 0, 4) . '-' .
@@ -112,6 +119,11 @@ class RiotCaptcha
 
         $diff = $date->diff($now);
 
+        if ($diff === false) {
+            return null;
+        }
+
+        // convert the difference into seconds
         $seconds = $diff->s;
         $seconds += $diff->format('%r%a') * 24 * 60 * 60;
         $seconds += $diff->h * 60 * 60;
@@ -120,10 +132,8 @@ class RiotCaptcha
         return $seconds;
     }
 
-
-
     /**
-     * DESCRIPTION HERE
+     * Save the captcha text, key, and date created to file
      */
     private static function saveToFile()
     {
@@ -131,7 +141,6 @@ class RiotCaptcha
             // captcha save file is not setup
             return false;
         }
-
 
         $fileHandle = fopen(self::$captchaTextFilePath, 'a+');
         if (!$fileHandle) {
@@ -180,21 +189,21 @@ class RiotCaptcha
 
 
     /**
-     * DESCRIPTION HERE
+     * return a random string from passed characters
      */
     private static function getRandomString($characters, $length)
     {
         $str = '';
         $maxRand = strlen($characters) - 1;
         for ($x = 1; $x <= $length; $x++) {
-            $rand = rand(0, $maxRand);
+            $rand = self::rand(0, $maxRand);
             $str .= substr($characters, $rand, 1);
         }
         return $str;
     }
 
     /**
-     * DESCRIPTION HERE
+     * create random string (captcha text)
      */
     private static function createRandomString()
     {
@@ -205,7 +214,7 @@ class RiotCaptcha
     }
 
     /**
-     * DESCRIPTION HERE
+     * create random key (unique identifier)
      */
     private static function createRandomKey()
     {
@@ -219,7 +228,8 @@ class RiotCaptcha
     }
 
     /**
-     * DESCRIPTION HERE
+     * get the captcha image url. includes the key.
+     * used in the image tag <img src="<?php echo getImageUrl(); ?>">
      */
     public static function getImageUrl()
     {
@@ -227,7 +237,7 @@ class RiotCaptcha
     }
 
     /**
-     * DESCRIPTION HERE
+     * output the captcha key in a hidden field
      */
     public static function outputHiddenField()
     {
@@ -235,7 +245,8 @@ class RiotCaptcha
     }
 
     /**
-     * DESCRIPTION HERE
+     * get variable name for the string (captcha text)
+     * <input type="text" name="<?php echo getStringVariable(); ?>">
      */
     public static function getStringVariable()
     {
@@ -243,7 +254,7 @@ class RiotCaptcha
     }
 
     /**
-     * DESCRIPTION HERE
+     * get the passed key, find the string (captcha text), write the captcha image
      */
     public static function outputImage()
     {
@@ -259,7 +270,7 @@ class RiotCaptcha
     }
 
     /**
-     * DESCRIPTION HERE
+     * set the key that was passed in the url ($_GET)
      */
     private static function setKeyFromGet()
     {
@@ -276,7 +287,7 @@ class RiotCaptcha
     }
 
     /**
-     * DESCRIPTION HERE
+     * set the key that was passed in a form ($_POST)
      */
     private static function getFromPost($name)
     {
@@ -297,7 +308,8 @@ class RiotCaptcha
     }
 
     /**
-     * DESCRIPTION HERE
+     * searches the file for the key and sets the string and number of seconds
+     *      since the captcha was created
      */
     private static function setStringFromKey()
     {
@@ -334,12 +346,10 @@ class RiotCaptcha
                 if (strcmp(self::$key,  $key) === 0) {
                     // match found
                     $secondsAgo = self::getSecondsAgo(trim($data[2]));
-                    if ($secondsAgo !== null) {
-                        self::$string = trim($data[0]);
-                        self::$secondsAgo = $secondsAgo;
-                        fclose($fileHandle);
-                        return true;
-                    }
+                    self::$string = trim($data[0]);
+                    self::$secondsAgo = $secondsAgo;
+                    fclose($fileHandle);
+                    return true;
                 }
             }
         }
@@ -349,11 +359,25 @@ class RiotCaptcha
         return false;
     }
 
+    // random number with $min, $max check
+    private static function rand($min, $max)
+    {
+        if ($max == $min) {
+            return $max;
+        }
+        if ($max < $min) {
+            return round(($min + $max)  / 2);
+        }
+
+        return mt_rand($min, $max);
+    }
+
+    // adds a section of dark or light color to the captcha image
     private static function addBackgroundgColor($img, $start, $end, $colorType)
     {
         $left = $start;
         $top = 0;
-        $right = rand($left + (self::$imageWidth * .1), $end);
+        $right = self::rand($left + (self::$imageWidth * .1), $end);
         $bottom = self::$imageHeight;
 
         // make sure block isn't too wide
@@ -383,6 +407,7 @@ class RiotCaptcha
         return $img;
     }
 
+    // fill an element with transparency
     private static function fillTransparent($img)
     {
         $trans = imagecolorallocate($img, 0, 0, 0);
@@ -392,20 +417,24 @@ class RiotCaptcha
     }
 
     /**
-     * DESCRIPTION HERE
+     * make the captcha image and output it
      */
     private static function makeImage()
     {
+        // shorter variables
         $w = self::$imageWidth;
         $h = self::$imageHeight;
-        $length = strlen(self::$string);
+        $len = strlen(self::$string);
 
-        if ($length < 2) {
+        if ($len < 2) {
             return;
         }
 
-        $widthEach = $w / $length;
-        $lightStart = rand(2, $length);
+        $widthEach = $w / $len;
+
+        // the first characters are light was a dark background. light background
+        //      width dark characters starts at the $lightStart character
+        $lightStart = self::rand(2, $len);
         $lightStartPx = ($lightStart - 1) * $widthEach;
 
         $img = imagecreate($w, $h);
@@ -413,12 +442,14 @@ class RiotCaptcha
         $dark = self::getRandomRgb('dark');
         ImageFill($img, 0, 0, self::getGdColor($img, $dark));
 
-        self::addBackgroundgColor($img, rand($widthEach * .3, $lightStartPx * .4), $lightStartPx, 'dark');
+        // dark backgrounds
+        self::addBackgroundgColor($img, self::rand($widthEach * .3, $lightStartPx * .4), $lightStartPx, 'dark');
 
+        // light backgrounds
         self::addBackgroundgColor($img, $lightStartPx, $w, 'light');
 
-
-        for ($x = 1; $x <= $length; $x++) {
+        // add characters
+        for ($x = 1; $x <= $len; $x++) {
             // currect character
             $char = substr(self::$string, $x - 1, 1);
 
@@ -441,65 +472,66 @@ class RiotCaptcha
             $charWidth = imagesx($temp);
             $charHeight = imagesy($temp);
 
+            // get random image size that fits and has the correct ratio
             $maxWidth = $widthEach * .9;
             $maxHeight = $maxWidth / $charWidth * $charHeight;
             if ($maxHeight > $h * .9) {
                 $maxHeight = $h * .9;
                 $maxWidth = $maxHeight / $charHeight * $charWidth;
             }
-            $newWidth = rand($maxWidth * .6, $maxWidth);
+            $newWidth = self::rand($maxWidth * .6, $maxWidth);
             $newHeight = $newWidth / $charWidth * $charHeight;
 
-            $left = (($x - 1) * $widthEach) + ($widthEach * .05) + rand(0, $widthEach - $newWidth);
-            $top = rand($newHeight * .05, $h - $newHeight + 1);
+            // random image position
+            $left = (($x - 1) * $widthEach) + ($widthEach * .05) + self::rand(0, $widthEach - $newWidth);
+            $top = self::rand($newHeight * .05, $h - $newHeight + 1);
+
+            // add character to the iamge
             imagecopyresampled($img, $temp, $left, $top, 0, 0,  $newWidth,  $newHeight,  $charWidth,  $charHeight);
         }
 
-
-        // roate 3 degress left or right
-        if (rand(0, 1) > 0) {
+        // rotate 2 degress left or right
+        if (self::rand(0, 1) > 0) {
             $degrees = 2;
         } else {
             $degrees = -2;
         }
         $img = imagerotate($img, $degrees, 0);
 
-
-        // crop to correct size
-        //$left = (imagesx($img) - $w) / 2;
-        //$top = (imagesy($img) - $h) / 2;
-        //$img = imagecrop($img, ['x' => $left, 'y' => $top, 'width' => $w, 'height' => $h]);
+        // resize tot the correct size
         imagescale($img, $w, $h);
 
-
         // add rectangles around letters
-        for ($x = 1; $x <= $length; $x++) {
+        for ($x = 1; $x <= $len; $x++) {
 
             $min = $widthEach * ($x - 1);
             $max = $min + ($widthEach * .1);
-            $left = rand($min, $max);
+            $left = self::rand($min, $max);
 
-            $numLetters = rand($x, $length);
+            $numLetters = self::rand($x, $len);
             $min = $widthEach * $numLetters;
             $max = $min + ($widthEach * .1);
-            $right = rand($min, $max);
+            $right = self::rand($min, $max);
 
-            $top = rand(1, $h * .15);
-            $bottom = rand($h * .85, $h);
+            $top = self::rand(1, $h * .15);
+            $bottom = self::rand($h * .85, $h - 1);
             $rgb = self::getRandomRgb();
             imagerectangle($img, $left, $top, $right, $bottom, self::getGdColor($img, $rgb));
         }
 
+        // blur the iage
         imagefilter($img, IMG_FILTER_GAUSSIAN_BLUR);
 
+        // ouput image
         header("Content-Type: image/jpg");
-
         imagepng($img);
+
+        // cleanup the image object
         imagedestroy($img);
     }
 
     /**
-     * DESCRIPTION HERE
+     * get a random color in RGB format
      */
     private static function getRandomRgb($type = '')
     {
@@ -507,30 +539,30 @@ class RiotCaptcha
             $min = 0;
             $max = 60;
             $min2 = 80;
-            $max2 = 150;
+            $max2 = 170;
         } elseif ($type == "light") {
             $min = 210;
             $max = 255;
-            $min2 = 150;
+            $min2 = 130;
             $max2 = 210;
         } else {
             $min = 0;
-            $max = 0;
-            $min2 = 255;
+            $max = 255;
+            $min2 = 0;
             $max2 = 255;
         }
 
         $c = array();
-        $c[1] = rand($min, $max);
-        $c[2] = rand($min, $max);
-        $c[3] = rand($min, $max);
-        $c[mt_rand(1, 3)] = rand($min2, $max2);
+        $c[1] = self::rand($min, $max);
+        $c[2] = self::rand($min, $max);
+        $c[3] = self::rand($min, $max);
+        $c[self::rand(1, 3)] = self::rand($min2, $max2);
 
         return $c;
     }
 
     /**
-     * DESCRIPTION HERE
+     * get color in the PHP GD image class
      */
     private static function getGdColor($obj, $rgb)
     {
@@ -538,12 +570,13 @@ class RiotCaptcha
     }
 
     /**
-     * DESCRIPTION HERE
+     * validate the captcha
      */
     public static function validate()
     {
         self::$isSuccess = false;
 
+        // get the key, make sure it exists
         $key = self::getFromPost(self::$keyVarialble);
         if (empty($key)) {
             self::$error = self::$errorMessageMismatch . ' (1)';
@@ -551,6 +584,7 @@ class RiotCaptcha
         }
         self::$key = $key;
 
+        // get the sting, make sure it exists
         $matchString = self::getFromPost(self::$stringVarialble);
         if (empty($matchString)) {
             self::$error = self::$errorMessageRequired;
@@ -558,20 +592,24 @@ class RiotCaptcha
             return false;
         }
 
+        // get the string from the file that matches the key
         self::setStringFromKey();
 
+        // make sure the string in the file exists
         if (empty(self::$string)) {
             self::$error = self::$errorMessageMismatch . ' (2)';
             self::fileCleanup();
             return false;
         }
 
+        // make sure the string from the file matches the passed string
         if (strcasecmp($matchString,  self::$string) !== 0) {
             self::$error = self::$errorMessageMismatch;
             self::fileCleanup();
             return false;
         }
 
+        // make sure the catpcha did not timeout
         if (self::$secondsAgo === null || self::$secondsAgo >= self::$captchaTimoutSeconds) {
             self::$error = self::$errorMessageTimeout;
             self::fileCleanup();
@@ -583,6 +621,7 @@ class RiotCaptcha
         return true;
     }
 
+    // remove the current captcha after it was tested and all captchas that have timed out
     public static function fileCleanup()
     {
         if (empty(self::$key)) {
@@ -622,18 +661,19 @@ class RiotCaptcha
                     $secondsAgo = self::getSecondsAgo(trim($data[2]));
 
                     if ($secondsAgo !== null && $secondsAgo <= self::$captchaTimoutSeconds) {
+                        // active captcha found, rewrite it
                         $newContents .= "\n" . $line;
                     }
                 }
             }
         }
 
+        // close read handler
         fclose($fileHandle);
 
-        $newContents = trim($newContents);
-
+        // write to file
         $fileHandle = fopen(self::$captchaTextFilePath, 'w');
-        fwrite($fileHandle, $newContents);
+        fwrite($fileHandle, trim($newContents));
         fclose($fileHandle);
     }
 
